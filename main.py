@@ -1,14 +1,17 @@
 import uvicorn
 from fastapi import FastAPI
 
-app = FastAPI()
+from api.lifespan import lifespan
+from api.routes import auth_router, core_router
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
+app = FastAPI(lifespan=lifespan)
+
+app.include_router(core_router)
+app.include_router(auth_router)
 
 def main():
-    uvicorn.run("main:app", host='0.0.0.0', port = 8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 if __name__ == "__main__":
     main()
