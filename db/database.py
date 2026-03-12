@@ -22,7 +22,7 @@ def create_sql_light_engine(path: str | None = None):
 
 Base = declarative_base()
 
-engine = create_sql_light_engine("chatbox.db")
+engine = create_sql_light_engine("botbox.db")
 Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():
