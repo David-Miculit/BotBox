@@ -1,82 +1,34 @@
-from fastapi import APIRouter
-from fastapi import Depends
-from db.models import UserRecord
-from db.database import get_db
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
-from utils.hashing import hash_password
-from sqlalchemy.exc import IntegrityError
-from datetime import datetime, timezone, timedelta
-import jwt
-from dotenv import load_dotenv
-import os
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
-load_dotenv()
-jwt_key = os.getenv("SECRET_KEY")
+from api.models import LoginRequest, SignupRequest, TokenResponse, UserResponse
+from db.database import get_db
+from db.models import UserRecord
+from utils.auth import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-class UserSignup(BaseModel):
-    email: EmailStr
-    name: str = Field(min_length=3, max_length=20)
-    phone: str = Field(default="")
-    avatar_url: str = Field(default="")
-    password: str = Field(min_length=8, max_length=20)
+@router.post("/signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+def signup(body: SignupRequest, db: Session = Depends(get_db)):
+    if db.query(UserRecord).filter(UserRecord.email == body.email).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
-class User(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    email: EmailStr
-    name: str
-    phone: str
-    avatar_url: str
-    # password_hash: str
-
-class TokenResponse():
-    user: User
-    access_token = str
-    token_type: str
-
-    def __init__(self, user, access_token, token_type = "bearer"):
-        self.user = user
-        self.access_token = access_token
-        token_type = token_type
-
-def create_access_token(user: User):
-    payload = {
-        "sub": str(user.id),
-        "email": user.email
-    }
-
-    expire = datetime.now(timezone.utc) + timedelta(minutes = 30)
-    payload.update({"exp": expire})
-    
-    encoded_jwt = jwt.encode(payload = payload, key = jwt_key, algorithm = "HS256")
-    return encoded_jwt
-
-@router.post("/login")
-def login():
-    """Login endpoint. Implement later."""
-    pass
-
-@router.post("/signup")
-def signup(user_signup: UserSignup, db = Depends(get_db)):
-    hashed_password = hash_password(user_signup.password)
-    new_user = UserRecord(
-        email = user_signup.email,
-        name = user_signup.name,
-        phone = user_signup.phone,
-        avatar_url = user_signup.avatar_url,
-        password_hash = hashed_password
+    user = UserRecord(
+        email=body.email,
+        name=body.name,
+        password_hash=hash_password(body.password),
     )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
 
-    try:
-        db.add(new_user)
-        db.commit()
-    except IntegrityError:
-        return "User already exists"
+    return TokenResponse(access_token=create_access_token(user), user=UserResponse.model_validate(user))
 
-    user = User.model_validate(new_user)
-    access_token = create_access_token(user)
+@router.post("/login", response_model=TokenResponse)
+def login(body: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(UserRecord).filter(UserRecord.email == body.email).first()
 
-    return TokenResponse(user=user, access_token=access_token)
+    if not user or not user.password_hash or not verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    return TokenResponse(access_token=create_access_token(user), user=UserResponse.model_validate(user))
