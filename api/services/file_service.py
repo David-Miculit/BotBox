@@ -2,7 +2,7 @@ from pathlib import Path
 from uuid import uuid4
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
-from db.models import FileContentRecord, FileRecord
+from db.schema import FileContentRecord, FileRecord
 from sqlalchemy import func
 
 class FileService:

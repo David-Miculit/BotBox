@@ -6,7 +6,7 @@ from api.models import UserResponse
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from db.database import get_db
-from db.models import UserRecord
+from db.schema import UserRecord
 from sqlalchemy.orm import Session
 from jwt.exceptions import PyJWTError
 from config.settings import settings

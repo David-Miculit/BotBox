@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from db.models import UserRecord
+from db.schema import UserRecord
 from utils.auth import get_current_user
 
 router = APIRouter(tags=["core"])
