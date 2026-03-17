@@ -1,11 +1,13 @@
 from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from db.models import UserRecord, FileRecord
+from db.schema import UserRecord, FileRecord, FileContentRecord
+from api.models import SearchRequest
 from db.database import get_db
 from sqlalchemy.orm import Session
 from utils.auth import get_current_user
 from api.services.file_service import FileService, get_file_service
+from sqlalchemy import func
 
 UPLOAD_DIR = Path("files")
 
@@ -89,3 +91,18 @@ def retrieve_content(file_id: int, current_user: UserRecord = Depends(get_curren
         )
 
     return FileResponse(path=file_path, media_type=file_record.content_type, filename=file_record.original_name)
+
+@router.post("/search")
+def search_content(payload: SearchRequest, current_user: UserRecord = Depends(get_current_user), db: Session = Depends(get_db)):
+    ts_query = func.to_tsquery('english', payload.body)
+
+    file_record = (
+        db.query(FileRecord)
+        .join(FileContentRecord, FileContentRecord.file_id == FileRecord.id)
+        .filter(FileRecord.user_id == str(current_user.id))
+        .filter(FileContentRecord.content_tsv.op('@@')(ts_query))
+        .order_by(func.ts_rank(FileContentRecord.content_tsv, ts_query).desc())
+        .limit(10).all()
+    )
+
+    return file_record
