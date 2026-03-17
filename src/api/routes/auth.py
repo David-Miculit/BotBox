@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from api.models import LoginRequest, SignupRequest, TokenResponse, UserResponse
 from db.database import get_db
-from db.models import UserRecord
+from db.schema import UserRecord
 from utils.auth import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
