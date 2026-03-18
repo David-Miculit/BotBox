@@ -6,20 +6,17 @@ from api.models import SearchRequest
 from db.database import get_db
 from sqlalchemy.orm import Session
 from utils.auth import get_current_user
-from api.services.file_service import FileService, get_file_service
+from api.services.file_service import get_file_base_dir, store_and_record
 from sqlalchemy import func
 
-UPLOAD_DIR = Path("files")
-
 router = APIRouter(prefix="/files", tags=["files"])
-
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def upload_file(
     file: UploadFile = File(...),
     current_user: UserRecord = Depends(get_current_user),
-    file_service: FileService = Depends(get_file_service),
     db: Session = Depends(get_db),
+    base_dir: Path = Depends(get_file_base_dir)
 ):    
     if not file.filename:
         raise HTTPException(
@@ -27,7 +24,7 @@ async def upload_file(
             detail="Filename is required",
         )
     
-    record = await file_service.store_and_record(file=file, user_id=current_user.id, db=db)
+    record = await store_and_record(file=file, user_id=current_user.id, db=db, base_dir=base_dir)
 
     return {
         "id": record.id,
