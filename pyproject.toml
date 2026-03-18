@@ -15,6 +15,9 @@ dependencies = [
     "pyjwt>=2.11.0",
     "python-dotenv>=1.2.2",
     "python-multipart>=0.0.22",
+    "voyageai>=0.3.7",
+    "numpy>=2.4.3",
+    "pgvector>=0.4.2",
 ]
 
 [project.scripts]
