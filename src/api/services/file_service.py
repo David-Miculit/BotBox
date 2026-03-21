@@ -101,10 +101,44 @@ def chunk_by_sentence(text, max_sentences_per_chunk=3, overlap_sentences=1):
 
     return chunks
 
+# def chunk_by_section_markdown(document_text):
+#     return [s.strip() for s in re.split(r"\n## ", document_text) if s.strip()]
+
 # return an embedding vector per text
 def embed(texts: list[str], model: str = "voyage-3") -> list[list[float]]:
     result = client.embed(texts, model=model, output_dimension=1024)
     return result.embeddings
 
-# def chunk_by_section_markdown(document_text):
-#     return [s.strip() for s in re.split(r"\n## ", document_text) if s.strip()]
+SIMILARITY_THRESHOLD = 0.20
+def semantic_retrieve(db: Session, user_id: int, query: str, limit: int = 10) -> list[dict]:
+    query_embedding = embed([query])[0]
+    distance = FileContentChunkRecord.embedding.cosine_distance(query_embedding)
+
+    results = (
+        db.query(
+            FileContentChunkRecord.file_id,
+            FileContentChunkRecord.chunk_id,
+            FileContentChunkRecord.chunk,
+            FileRecord.original_name,
+            distance.label("distance"),
+        )
+        .join(FileRecord, FileRecord.id == FileContentChunkRecord.file_id)
+        .filter(FileRecord.user_id == user_id)
+        .order_by(distance, FileContentChunkRecord.file_id, FileContentChunkRecord.chunk_id)
+        .limit(limit * 2)
+        .all()
+    )
+
+    filtered = [
+        {
+            "file_id": r.file_id,
+            "chunk_id": r.chunk_id,
+            "filename": r.original_name,
+            "chunk": r.chunk,
+            "similarity": float(1 - r.distance),
+        }
+        for r in results
+        if (1 - r.distance) > SIMILARITY_THRESHOLD
+    ]
+
+    return filtered[:limit]
