@@ -1,14 +1,13 @@
 from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from db.schema import UserRecord, FileRecord, FileContentRecord, FileContentChunkRecord
-from api.models import SearchRequest
+from db.schema import UserRecord, FileRecord, FileContentRecord
 from db.database import get_db
 from sqlalchemy.orm import Session
 from utils.auth import get_current_user
 from api.services.file_service import get_file_base_dir, store_and_record
-from sqlalchemy import func, text
-from api.services.file_service import embed
+from sqlalchemy import func
+from api.services.file_service import semantic_retrieve
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -66,35 +65,23 @@ def search_content(q: str, current_user: UserRecord = Depends(get_current_user),
     return file_record
 
 @router.get("/semantic_search")
-def semantic_search(q: str, db: Session = Depends(get_db), current_user: UserRecord = Depends(get_current_user)):
+def semantic_search(
+    q: str,
+    db: Session = Depends(get_db),
+    current_user: UserRecord = Depends(get_current_user)
+):
     if not q or q.strip() == "":
         raise HTTPException(status_code=400, detail="Query parameter 'q' is required.")
-
-    query_embedding = embed([q])[0]
-    cosine_distance = FileContentChunkRecord.embedding.cosine_distance(query_embedding)
-    similarity = (1 - cosine_distance).label("similarity")
-
-    results = (
-        db.query(FileContentChunkRecord.file_id,FileContentChunkRecord.chunk_id,FileContentChunkRecord.chunk,similarity)
-        .join(FileRecord, FileRecord.id == FileContentChunkRecord.file_id)
-        .filter(FileRecord.user_id == current_user.id)
-        .filter(similarity > 0.25)
-        .order_by(cosine_distance.asc())
-        .limit(10)
-        .all()
+    results = semantic_retrieve(
+        db=db,
+        user_id=current_user.id,
+        query=q,
+        limit=10
     )
 
     return {
         "query": q,
-        "results": [
-            {
-                "file_id": r.file_id,
-                "chunk_id": r.chunk_id,
-                "chunk": r.chunk,
-                "similarity": float(r.similarity),
-            }
-            for r in results
-        ],
+        "results": results
     }
 
 @router.get("/{file_id}")
