@@ -12,3 +12,4 @@ wheels/
 botbox.db
 files
 .vscode
+.DS_STORE
